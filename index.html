@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OS Process Scheduler Simulator</title>
+    <!-- Use Tailwind CSS for a modern, responsive design -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        /* Custom styles for the Gantt chart area */
+        .gantt-container {
+            min-height: 100px;
+            background-color: #ffffff;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            display: flex;
+            align-items: flex-end;
+            position: relative;
+            overflow-x: auto;
+            white-space: nowrap;
+            padding-bottom: 2rem;
+        }
+        .gantt-bar {
+            height: 50px;
+            text-align: center;
+            color: white;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid white;
+            box-sizing: border-box;
+            position: relative;
+            border-radius: 0.25rem;
+            margin-right: 2px;
+            min-width: 15px;
+            cursor: pointer;
+        }
+        .gantt-time {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            transform: translateX(-50%);
+            font-size: 0.75rem;
+            color: #4b5563;
+            margin-top: 5px;
+        }
+        .gantt-time.end {
+            left: 100%;
+        }
+        .tooltip {
+            position: absolute;
+            background-color: #1f2937;
+            color: white;
+            padding: 0.5rem;
+            border-radius: 0.25rem;
+            font-size: 0.875rem;
+            z-index: 10;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+            white-space: normal;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+    <div class="container min-h-screen flex flex-col items-center py-8">
+        <h1 class="text-4xl font-bold mb-8 text-indigo-700">OS Process Scheduler Simulator</h1>
+
+        <!-- Input and Control Panel -->
+        <div class="w-full bg-white rounded-xl shadow-lg p-6 mb-8 flex flex-col md:flex-row gap-6">
+            <!-- Process Input Form -->
+            <div class="md:w-1/2">
+                <h2 class="text-2xl font-semibold mb-4 text-indigo-600">Add Processes</h2>
+                <form id="process-form" class="space-y-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div>
+                            <label for="processId" class="block text-sm font-medium text-gray-700">Process ID</label>
+                            <input type="text" id="processId" name="processId" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500" required>
+                        </div>
+                        <div>
+                            <label for="arrivalTime" class="block text-sm font-medium text-gray-700">Arrival Time</label>
+                            <input type="number" id="arrivalTime" name="arrivalTime" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500" value="0" required>
+                        </div>
+                        <div>
+                            <label for="burstTime" class="block text-sm font-medium text-gray-700">Burst Time</label>
+                            <input type="number" id="burstTime" name="burstTime" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500" value="1" min="1" required>
+                        </div>
+                    </div>
+                    <div id="priority-input-container" class="hidden mt-2">
+                        <label for="priority" class="block text-sm font-medium text-gray-700">Priority</label>
+                        <input type="number" id="priority" name="priority" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500" value="1" min="1">
+                    </div>
+                    <button type="submit" class="w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors">Add Process</button>
+                </form>
+            </div>
+
+            <!-- Algorithm Selector and Action Buttons -->
+            <div class="md:w-1/2">
+                <h2 class="text-2xl font-semibold mb-4 text-indigo-600">Comparison Controls</h2>
+                <div class="flex flex-col md:flex-row gap-4">
+                    <div class="flex-1">
+                        <label for="algorithm-select-1" class="block text-sm font-medium text-gray-700">Algorithm 1</label>
+                        <select id="algorithm-select-1" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500">
+                            <option value="fcfs">First-Come, First-Served (FCFS)</option>
+                            <option value="sjf-nonpreemptive">SJF (Non-preemptive)</option>
+                            <option value="sjf-preemptive">SJF (Preemptive)</option>
+                            <option value="round-robin">Round Robin</option>
+                            <option value="priority">Priority Scheduling</option>
+                            <option value="multilevel-feedback-queue">Multilevel Feedback Queue</option>
+                        </select>
+                        <div id="quantum-input-container-1" class="hidden mt-2">
+                            <label for="quantum-1" class="block text-sm font-medium text-gray-700">Time Quantum</label>
+                            <input type="number" id="quantum-1" name="quantum-1" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500" value="2" min="1">
+                        </div>
+                        <div id="priority-input-container-1" class="hidden mt-2">
+                            <label for="priority-1" class="block text-sm font-medium text-gray-700">Priority</label>
+                            <input type="number" id="priority-1" name="priority-1" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500" value="1" min="1">
+                        </div>
+                    </div>
+                    <div class="flex-1">
+                        <label for="algorithm-select-2" class="block text-sm font-medium text-gray-700">Algorithm 2</label>
+                        <select id="algorithm-select-2" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500">
+                            <option value="sjf-nonpreemptive">SJF (Non-preemptive)</option>
+                            <option value="fcfs">First-Come, First-Served (FCFS)</option>
+                            <option value="sjf-preemptive">SJF (Preemptive)</option>
+                            <option value="round-robin">Round Robin</option>
+                            <option value="priority">Priority Scheduling</option>
+                            <option value="multilevel-feedback-queue">Multilevel Feedback Queue</option>
+                        </select>
+                        <div id="quantum-input-container-2" class="hidden mt-2">
+                            <label for="quantum-2" class="block text-sm font-medium text-gray-700">Time Quantum</label>
+                            <input type="number" id="quantum-2" name="quantum-2" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500" value="2" min="1">
+                        </div>
+                        <div id="priority-input-container-2" class="hidden mt-2">
+                            <label for="priority-2" class="block text-sm font-medium text-gray-700">Priority</label>
+                            <input type="number" id="priority-2" name="priority-2" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500" value="1" min="1">
+                        </div>
+                    </div>
+                </div>
+                <div class="flex gap-4 mt-4">
+                    <button id="run-simulation-btn" class="flex-1 py-2 px-4 rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors">
+                        Run Comparison
+                    </button>
+                    <button id="next-step-btn" class="flex-1 py-2 px-4 rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors">
+                        Next Step
+                    </button>
+                    <button id="reset-btn" class="flex-1 py-2 px-4 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-gray-200 hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors">
+                        Reset
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Simulation Results Section -->
+        <div class="w-full bg-white rounded-xl shadow-lg p-6">
+            <h2 class="text-2xl font-semibold mb-4 text-indigo-600">Simulation Results</h2>
+
+            <!-- Processes Table -->
+            <div class="mb-6">
+                <h3 class="text-xl font-medium mb-2">Processes</h3>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200 rounded-md overflow-hidden">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Arrival Time</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Burst Time</th>
+                                <th scope="col" class="relative px-6 py-3"><span class="sr-only">Remove</span></th>
+                            </tr>
+                        </thead>
+                        <tbody id="processes-table-body" class="bg-white divide-y divide-gray-200">
+                            <!-- Process rows will be inserted here by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Comparison Results Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <!-- Algorithm 1 Results -->
+                <div>
+                    <h3 id="algo-1-title" class="text-xl font-medium mb-4 text-indigo-600">Algorithm 1: -</h3>
+                    <div class="mb-6">
+                        <h4 class="text-lg font-medium mb-2">Gantt Chart</h4>
+                        <div id="gantt-chart-container-1" class="gantt-container"></div>
+                        <div id="tooltip-1" class="tooltip"></div>
+                    </div>
+                    <div>
+                        <h4 class="text-lg font-medium mb-2">Performance Metrics</h4>
+                        <div id="metrics-output-1" class="bg-gray-50 rounded-md p-4 grid grid-cols-1 gap-4">
+                            <div class="p-3 bg-white rounded-md shadow-sm">
+                                <p class="text-sm font-medium text-gray-500">Average Waiting Time</p>
+                                <p id="avg-waiting-time-1" class="text-2xl font-bold mt-1">-</p>
+                            </div>
+                            <div class="p-3 bg-white rounded-md shadow-sm">
+                                <p class="text-sm font-medium text-gray-500">Average Turnaround Time</p>
+                                <p id="avg-turnaround-time-1" class="text-2xl font-bold mt-1">-</p>
+                            </div>
+                            <div class="p-3 bg-white rounded-md shadow-sm">
+                                <p class="text-sm font-medium text-gray-500">Average Response Time</p>
+                                <p id="avg-response-time-1" class="text-2xl font-bold mt-1">-</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Algorithm 2 Results -->
+                <div>
+                    <h3 id="algo-2-title" class="text-xl font-medium mb-4 text-indigo-600">Algorithm 2: -</h3>
+                    <div class="mb-6">
+                        <h4 class="text-lg font-medium mb-2">Gantt Chart</h4>
+                        <div id="gantt-chart-container-2" class="gantt-container"></div>
+                        <div id="tooltip-2" class="tooltip"></div>
+                    </div>
+                    <div>
+                        <h4 class="text-lg font-medium mb-2">Performance Metrics</h4>
+                        <div id="metrics-output-2" class="bg-gray-50 rounded-md p-4 grid grid-cols-1 gap-4">
+                            <div class="p-3 bg-white rounded-md shadow-sm">
+                                <p class="text-sm font-medium text-gray-500">Average Waiting Time</p>
+                                <p id="avg-waiting-time-2" class="text-2xl font-bold mt-1">-</p>
+                            </div>
+                            <div class="p-3 bg-white rounded-md shadow-sm">
+                                <p class="text-sm font-medium text-gray-500">Average Turnaround Time</p>
+                                <p id="avg-turnaround-time-2" class="text-2xl font-bold mt-1">-</p>
+                            </div>
+                            <div class="p-3 bg-white rounded-md shadow-sm">
+                                <p class="text-sm font-medium text-gray-500">Average Response Time</p>
+                                <p id="avg-response-time-2" class="text-2xl font-bold mt-1">-</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript logic starts here -->
+    <script>
+        // Array to store all processes
+        let processes = [];
+        let processCount = 0;
+        let simulationId1 = null;
+        let simulationId2 = null;
+        
+        // Get references to DOM elements
+        const processForm = document.getElementById('process-form');
+        const processTableBody = document.getElementById('processes-table-body');
+        const algorithmSelect1 = document.getElementById('algorithm-select-1');
+        const algorithmSelect2 = document.getElementById('algorithm-select-2');
+        const quantumInputContainer1 = document.getElementById('quantum-input-container-1');
+        const priorityInputContainer1 = document.getElementById('priority-input-container-1');
+        const quantumInputContainer2 = document.getElementById('quantum-input-container-2');
+        const priorityInputContainer2 = document.getElementById('priority-input-container-2');
+        const runSimulationBtn = document.getElementById('run-simulation-btn');
+        const nextStepBtn = document.getElementById('next-step-btn');
+        const resetBtn = document.getElementById('reset-btn');
+        const mainPriorityInput = document.getElementById('priority');
+
+        const ganttChartContainer1 = document.getElementById('gantt-chart-container-1');
+        const avgWaitingTimeEl1 = document.getElementById('avg-waiting-time-1');
+        const avgTurnaroundTimeEl1 = document.getElementById('avg-turnaround-time-1');
+        const avgResponseTimeEl1 = document.getElementById('avg-response-time-1');
+        const algoTitle1 = document.getElementById('algo-1-title');
+        const tooltip1 = document.getElementById('tooltip-1');
+
+        const ganttChartContainer2 = document.getElementById('gantt-chart-container-2');
+        const avgWaitingTimeEl2 = document.getElementById('avg-waiting-time-2');
+        const avgTurnaroundTimeEl2 = document.getElementById('avg-turnaround-time-2');
+        const avgResponseTimeEl2 = document.getElementById('avg-response-time-2');
+        const algoTitle2 = document.getElementById('algo-2-title');
+        const tooltip2 = document.getElementById('tooltip-2');
+
+        const colors = {}; // To store colors for each process
+
+        // Function to show/hide priority and quantum inputs based on algorithm selection
+        function toggleAlgorithmInputs(algorithmSelect, quantumContainer, priorityContainer) {
+            const algorithm = algorithmSelect.value;
+            // Hide all by default
+            quantumContainer.classList.add('hidden');
+            priorityContainer.classList.add('hidden');
+
+            if (algorithm === 'round-robin' || algorithm === 'multilevel-feedback-queue') {
+                quantumContainer.classList.remove('hidden');
+            }
+            if (algorithm === 'priority' || algorithm === 'multilevel-feedback-queue') {
+                priorityContainer.classList.remove('hidden');
+            }
+        }
+        
+        // Initial setup
+        toggleAlgorithmInputs(algorithmSelect1, quantumInputContainer1, priorityInputContainer1);
+        toggleAlgorithmInputs(algorithmSelect2, quantumInputContainer2, priorityInputContainer2);
+        
+        // Event listeners for select changes
+        algorithmSelect1.addEventListener('change', () => toggleAlgorithmInputs(algorithmSelect1, quantumInputContainer1, priorityInputContainer1));
+        algorithmSelect2.addEventListener('change', () => toggleAlgorithmInputs(algorithmSelect2, quantumInputContainer2, priorityInputContainer2));
+
+        // Event listener for the "Add Process" form submission
+        processForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+
+            const processId = document.getElementById('processId').value;
+            const arrivalTime = parseInt(document.getElementById('arrivalTime').value);
+            const burstTime = parseInt(document.getElementById('burstTime').value);
+            const priority = mainPriorityInput.value ? parseInt(mainPriorityInput.value) : 1;
+            
+            if (!processId || isNaN(arrivalTime) || isNaN(burstTime)) {
+                console.error('Please fill out all required fields.');
+                return;
+            }
+
+            if (processes.some(p => p.id === processId)) {
+                alert(`A process with ID "${processId}" already exists. Please use a unique ID.`);
+                return;
+            }
+
+            const newProcess = {
+                id: processId,
+                arrivalTime: arrivalTime,
+                burstTime: burstTime,
+                priority: priority
+            };
+
+            processes.push(newProcess);
+            processCount++;
+
+            if (!colors[newProcess.id]) {
+                colors[newProcess.id] = `hsl(${Math.random() * 360}, 70%, 60%)`;
+            }
+            
+            renderProcessTable();
+
+            processForm.reset();
+            document.getElementById('processId').value = `P${processCount + 1}`;
+        });
+
+        function addProcessToTable(process) {
+            const row = processTableBody.insertRow();
+            row.innerHTML = `
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${process.id}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${process.arrivalTime}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${process.burstTime}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${process.priority !== null ? process.priority : '-'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                    <button class="text-red-600 hover:text-red-900 remove-btn" data-id="${process.id}">Remove</button>
+                </td>
+            `;
+            row.querySelector('.remove-btn').addEventListener('click', () => {
+                removeProcess(process.id);
+            });
+        }
+        
+        function removeProcess(id) {
+            processes = processes.filter(p => p.id !== id);
+            renderProcessTable();
+        }
+
+        function renderProcessTable() {
+            processTableBody.innerHTML = '';
+            processes.forEach(p => addProcessToTable(p));
+        }
+        
+        // Disables buttons during simulation to prevent multiple simultaneous runs
+        function toggleButtons(disabled) {
+            runSimulationBtn.disabled = disabled;
+            nextStepBtn.disabled = disabled;
+            resetBtn.disabled = disabled;
+            if (disabled) {
+                runSimulationBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                nextStepBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            } else {
+                runSimulationBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                nextStepBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+        }
+
+        // Event listeners for the main buttons
+        runSimulationBtn.addEventListener('click', () => {
+            if (processes.length === 0) {
+                alert('Please add at least one process to run the simulation.');
+                return;
+            }
+            
+            toggleButtons(true);
+            
+            runSimulation(
+                algorithmSelect1.value, 
+                document.getElementById('quantum-1').value, 
+                document.getElementById('priority-1').value,
+                ganttChartContainer1, 
+                avgWaitingTimeEl1,
+                avgTurnaroundTimeEl1,
+                avgResponseTimeEl1,
+                algoTitle1,
+                tooltip1
+            );
+            
+            runSimulation(
+                algorithmSelect2.value, 
+                document.getElementById('quantum-2').value, 
+                document.getElementById('priority-2').value,
+                ganttChartContainer2, 
+                avgWaitingTimeEl2,
+                avgTurnaroundTimeEl2,
+                avgResponseTimeEl2,
+                algoTitle2,
+                tooltip2
+            );
+        });
+
+        nextStepBtn.addEventListener('click', async () => {
+            if (processes.length === 0) {
+                alert('Please add at least one process to run the simulation.');
+                return;
+            }
+
+            toggleButtons(true);
+            await startOrStepSimulation(
+                algorithmSelect1.value, 
+                document.getElementById('quantum-1').value, 
+                document.getElementById('priority-1').value,
+                ganttChartContainer1, 
+                avgWaitingTimeEl1,
+                avgTurnaroundTimeEl1,
+                avgResponseTimeEl1,
+                algoTitle1,
+                tooltip1,
+                '1'
+            );
+            await startOrStepSimulation(
+                algorithmSelect2.value, 
+                document.getElementById('quantum-2').value, 
+                document.getElementById('priority-2').value,
+                ganttChartContainer2, 
+                avgWaitingTimeEl2,
+                avgTurnaroundTimeEl2,
+                avgResponseTimeEl2,
+                algoTitle2,
+                tooltip2,
+                '2'
+            );
+            toggleButtons(false);
+        });
+
+        resetBtn.addEventListener('click', () => {
+            processes = [];
+            processCount = 0;
+            simulationId1 = null;
+            simulationId2 = null;
+            
+            processTableBody.innerHTML = '';
+            
+            algorithmSelect1.value = 'fcfs';
+            algorithmSelect2.value = 'sjf-nonpreemptive';
+            
+            ganttChartContainer1.innerHTML = '';
+            avgWaitingTimeEl1.textContent = '-';
+            avgTurnaroundTimeEl1.textContent = '-';
+            avgResponseTimeEl1.textContent = '-';
+            algoTitle1.textContent = 'Algorithm 1: -';
+
+            ganttChartContainer2.innerHTML = '';
+            avgWaitingTimeEl2.textContent = '-';
+            avgTurnaroundTimeEl2.textContent = '-';
+            avgResponseTimeEl2.textContent = '-';
+            algoTitle2.textContent = 'Algorithm 2: -';
+            
+            toggleAlgorithmInputs(algorithmSelect1, quantumInputContainer1, priorityInputContainer1);
+            toggleAlgorithmInputs(algorithmSelect2, quantumInputContainer2, priorityInputContainer2);
+            
+            document.getElementById('processId').value = `P1`;
+            console.log('Simulation reset.');
+        });
+
+        async function startOrStepSimulation(algorithm, quantum, priority, ganttContainer, avgWTEl, avgTATEl, avgRTEl, algoTitleEl, tooltipEl, id) {
+            let simId = (id === '1') ? simulationId1 : simulationId2;
+
+            if (simId === null) {
+                // First step, start a new simulation
+                try {
+                    const payload = {
+                        processes: JSON.parse(JSON.stringify(processes)),
+                        algorithm: algorithm,
+                        quantum: parseInt(quantum) || 0,
+                        priority: parseInt(priority) || 0,
+                    };
+                    const response = await fetch('http://localhost:5000/start-simulation', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload),
+                    });
+                    
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        alert(`Error starting simulation: ${errorData.error}`);
+                        return;
+                    }
+                    const result = await response.json();
+                    simId = result.simulationId;
+                    if (id === '1') simulationId1 = simId;
+                    else simulationId2 = simId;
+                    
+                    const algoNameMap = {
+                        'fcfs': 'First-Come, First-Served (FCFS)',
+                        'sjf-nonpreemptive': 'SJF (Non-preemptive)',
+                        'sjf-preemptive': 'SJF (Preemptive)',
+                        'round-robin': 'Round Robin',
+                        'priority': 'Priority Scheduling',
+                        'multilevel-feedback-queue': 'Multilevel Feedback Queue'
+                    };
+                    const displayQuantum = (algorithm === 'round-robin' || algorithm === 'multilevel-feedback-queue') ? ` (Q=${quantum})` : '';
+                    algoTitleEl.textContent = `Algorithm: ${algoNameMap[algorithm]}${displayQuantum}`;
+                    
+                } catch (error) {
+                    console.error('Fetch error:', error);
+                    alert('Failed to connect to the simulation server.');
+                    return;
+                }
+            }
+            
+            // Now, step the simulation
+            try {
+                const response = await fetch('http://localhost:5000/step-simulation', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ simulationId: simId }),
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    alert(`Error stepping simulation: ${errorData.error}`);
+                    return;
+                }
+                const result = await response.json();
+
+                drawGanttChart(result.ganttChart, ganttContainer, result.completedProcesses, tooltipEl);
+                avgWTEl.textContent = result.metrics.avgWaitingTime.toFixed(2);
+                avgTATEl.textContent = result.metrics.avgTurnaroundTime.toFixed(2);
+                avgRTEl.textContent = result.metrics.avgResponseTime.toFixed(2);
+
+                if (result.isComplete) {
+                    alert(`Simulation for Algorithm ${id} is complete!`);
+                    if (id === '1') simulationId1 = null;
+                    else simulationId2 = null;
+                }
+
+            } catch (error) {
+                console.log('Fetch error:', error);
+                alert('Failed to connect to the simulation server.');
+            }
+        }
+        
+        async function runSimulation(algorithm, quantum, priority, ganttContainer, avgWTEl, avgTATEl, avgRTEl, algoTitleEl, tooltipEl) {
+            let simulatedProcesses = JSON.parse(JSON.stringify(processes));
+            
+            const algoNameMap = {
+                'fcfs': 'First-Come, First-Served (FCFS)',
+                'sjf-nonpreemptive': 'SJF (Non-preemptive)',
+                'sjf-preemptive': 'SJF (Preemptive)',
+                'round-robin': 'Round Robin',
+                'priority': 'Priority Scheduling',
+                'multilevel-feedback-queue': 'Multilevel Feedback Queue'
+            };
+            const displayQuantum = (algorithm === 'round-robin' || algorithm === 'multilevel-feedback-queue') ? ` (Q=${quantum})` : '';
+            algoTitleEl.textContent = `Algorithm: ${algoNameMap[algorithm]}${displayQuantum}`;
+
+            if ((algorithm === 'priority' || algorithm === 'multilevel-feedback-queue') && simulatedProcesses.some(p => p.priority === null)) {
+                alert('All processes must have a priority for this algorithm.');
+                return;
+            }
+            if ((algorithm === 'round-robin' || algorithm === 'multilevel-feedback-queue') && (isNaN(quantum) || quantum < 1)) {
+                alert('Please enter a valid time quantum.');
+                return;
+            }
+
+            try {
+                const payload = {
+                    processes: simulatedProcesses,
+                    algorithm: algorithm,
+                    quantum: parseInt(quantum) || 0,
+                    priority: parseInt(priority) || 0,
+                };
+                const response = await fetch('http://localhost:5000/run-simulation', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    console.error('Server error:', errorData.error);
+                    alert(`Error from server: ${errorData.error}`);
+                    return;
+                }
+                const result = await response.json();
+                const ganttChartData = result.ganttChart;
+                const metrics = result.metrics;
+                const completedProcesses = result.completedProcesses;
+
+                drawGanttChart(ganttChartData, ganttContainer, completedProcesses, tooltipEl);
+                avgWTEl.textContent = metrics.avgWaitingTime.toFixed(2);
+                avgTATEl.textContent = metrics.avgTurnaroundTime.toFixed(2);
+                avgRTEl.textContent = metrics.avgResponseTime.toFixed(2);
+                
+            } catch (error) {
+                console.error('Fetch error:', error);
+                alert('Failed to connect to the simulation server. Please make sure your Flask app is running.');
+            } finally {
+                toggleButtons(false);
+            }
+        }
+        
+        function drawGanttChart(ganttChartData, ganttContainer, allProcesses, tooltipEl) {
+            ganttContainer.innerHTML = '';
+            
+            const ganttScale = 10;
+
+            ganttChartData.forEach(item => {
+                const barWidth = Math.max((item.end - item.start) * ganttScale, 15);
+                const bar = document.createElement('div');
+                bar.classList.add('gantt-bar');
+                bar.style.width = `${barWidth}px`;
+                bar.style.backgroundColor = colors[item.id] || '#ccc';
+                bar.textContent = item.id !== 'Idle' ? item.id : '';
+
+                const startTimeLabel = document.createElement('span');
+                startTimeLabel.classList.add('gantt-time');
+                startTimeLabel.textContent = item.start;
+
+                const endTimeLabel = document.createElement('span');
+                endTimeLabel.classList.add('gantt-time', 'end');
+                endTimeLabel.textContent = item.end;
+                
+                bar.appendChild(startTimeLabel);
+                bar.appendChild(endTimeLabel);
+
+                if (item.id !== 'Idle') {
+                    bar.addEventListener('mouseenter', (e) => {
+                        const process = allProcesses.find(p => p.id === item.id);
+                        if (!process) return;
+
+                        const tooltipContent = `
+                            <strong>ID:</strong> ${process.id}<br>
+                            <strong>Arrival:</strong> ${process.arrivalTime}<br>
+                            <strong>Burst:</strong> ${process.burstTime}<br>
+                            <strong>Completion:</strong> ${process.completionTime}<br>
+                            <strong>Turnaround:</strong> ${process.turnaroundTime}<br>
+                            <strong>Waiting:</strong> ${process.waitingTime}<br>
+                            <strong>Response:</strong> ${process.responseTime}
+                        `;
+                        tooltipEl.innerHTML = tooltipContent;
+                        tooltipEl.style.top = `${e.clientY + 15}px`;
+                        tooltipEl.style.left = `${e.clientX + 15}px`;
+                        tooltipEl.style.opacity = 1;
+                    });
+                    bar.addEventListener('mouseleave', () => {
+                        tooltipEl.style.opacity = 0;
+                    });
+                }
+                ganttContainer.appendChild(bar);
+            });
+        }
+        
+        document.getElementById('processId').value = `P1`;
+    </script>
+</body>
+</html>
